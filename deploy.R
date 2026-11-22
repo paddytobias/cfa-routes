@@ -49,13 +49,14 @@ local({
 })
 
 env_values <- Sys.getenv(app_env_vars)
+# Sys.getenv() only names its result when given several variables, so name it explicitly.
+names(env_values) <- app_env_vars
 missing_vars <- names(env_values)[!nzchar(env_values)]
 if (length(missing_vars)) {
   message("Not set in ~/.Renviron, so not bundled (the app falls back to defaults): ",
           paste(missing_vars, collapse = ", "))
 }
 env_values <- env_values[nzchar(env_values)]
-names(env_values) <- app_env_vars[nzchar(env_values)]
 # if (file.exists(".Renviron")) stop("A project .Renviron already exists; move it before deploying.", call. = FALSE)
 writeLines(paste0(names(env_values), "=", env_values), ".Renviron")
 
