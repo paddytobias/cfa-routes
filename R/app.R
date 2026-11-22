@@ -21,6 +21,17 @@ app_theme <- function() {
       .kpi-note { font-size: .85rem; color: var(--bs-secondary-color); margin: 0 0 .25rem; }
       .card { border: 0; box-shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06); }
       .card-header { font-weight: 600; background: transparent; }
+      #map { min-height: 320px; max-height: 520px; }
+      .table-responsive td, .table-responsive th { white-space: nowrap; }
+      @media (max-width: 575.98px) {
+        .navbar-brand { font-size: 1rem; white-space: normal; }
+        .bslib-page-dashboard { padding: .5rem; }
+        .bslib-value-box .value-box-showcase { display: none; }
+        .bslib-value-box .value-box-value { font-size: 1.5rem; }
+        .bslib-value-box .value-box-title { font-size: .7rem; }
+        .bslib-value-box p { font-size: .75rem; margin-bottom: 0; }
+        .card-body { padding: .75rem; }
+      }
     ")
 }
 
@@ -31,7 +42,7 @@ kpi_boxes <- function(s, margin) {
     title = title, value = value, shiny::p(sub), showcase = shiny::icon(icon),
     theme = bslib::value_box_theme(bg = bg, fg = fg), height = "auto")
   bslib::layout_column_wrap(
-    width = "190px", fill = FALSE,
+    width = "150px", fill = FALSE,
     box("Incidents compared", s$comparable, sprintf("%d where Chewton was not paged", s$comparable), "#343A40", "list-check"),
     box("Chewton first", pct(s$first), sprintf("%d of %d incidents", s$first, s$comparable), verdict_colours[["Chewton first"]], "trophy"),
     box("Within margin", pct(s$within_margin), sprintf("within %g min of the first brigade", margin), verdict_colours[["Within margin"]], "stopwatch", "#000000"),
@@ -42,36 +53,41 @@ kpi_boxes <- function(s, margin) {
 }
 
 app_ui <- function() {
-  bslib::page_sidebar(
-    title = "Chewton CFA: would we have been there first?",
+  bslib::page_navbar(
+    title = "Chewton CFA: would we have been quicker?",
     theme = app_theme(),
-    class = "bslib-page-dashboard",
     fillable = FALSE,
     sidebar = bslib::sidebar(
       width = 320,
-      shiny::sliderInput("handicap", "Extra time for Chewton to turn out (min)", 0, 10, 0, step = 0.5),
-      shiny::sliderInput("margin", "Within margin: behind the first paged brigade by up to (min)", 0, 5, 2, step = 0.5),
-      shiny::sliderInput("speed", "Speed factor, all brigades (0.9 = trucks 10% slower than Google's car time)", 0.6, 1.2, 1, step = 0.05),
-      shiny::checkboxInput("complete_only", "Only incidents where every paged brigade could be compared", TRUE),
-      shiny::hr(),
       shiny::selectInput("incident", "Incident (or click a marker)", choices = NULL),
+      shiny::hr(),
+      shiny::sliderInput("handicap", "Extra time for Chewton to turn out (min)", 0, 10, 0, step = 0.5),
+      shiny::sliderInput("margin", "Within X minutes of the first paged brigade's arrival", 0, 5, 2, step = 0.5),
+      shiny::sliderInput("speed", "Speed factor, all brigades (0.9 = trucks 10% slower than Google's car time)", 0.6, 1.2, 0.9, step = 0.05),
+      shiny::checkboxInput("complete_only", "Only incidents where every paged brigade could be compared", FALSE),
+    
       shiny::downloadButton("download", "Download table (CSV)", class = "btn-outline-primary")
     ),
-    shiny::uiOutput("kpis"),
-    bslib::card(
-      bslib::card_header("Map"),
-      full_screen = TRUE,
-      leaflet::leafletOutput("map", height = 520)
+    bslib::nav_panel(
+      "Overview", icon = shiny::icon("map-location-dot"), class = "bslib-page-dashboard",
+      shiny::uiOutput("kpis"),
+      bslib::card(
+        bslib::card_header("Map"),
+        full_screen = TRUE,
+        leaflet::leafletOutput("map", height = "65vh")
+      ),
+      bslib::card(bslib::card_header("Selected incident"),
+                  shiny::div(class = "table-responsive", shiny::tableOutput("detail")))
     ),
-    bslib::card(bslib::card_header("Selected incident"), shiny::tableOutput("detail")),
-    bslib::card(
-      bslib::card_header("All incidents"), full_screen = TRUE,
-      shiny::tableOutput("table")
+    bslib::nav_panel(
+      "All incidents", icon = shiny::icon("table-list"), class = "bslib-page-dashboard",
+      bslib::card(bslib::card_header("All incidents"), full_screen = TRUE,
+                  shiny::div(class = "table-responsive", shiny::tableOutput("table")))
     ),
-    bslib::accordion(
-      open = FALSE,
-      bslib::accordion_panel(
-        "How to read this, and its limits",
+    bslib::nav_panel(
+      "About", icon = shiny::icon("circle-info"), class = "bslib-page-dashboard",
+      bslib::card(
+        bslib::card_header("How to read this, and its limits"),
         shiny::tags$p("On the map, a thick red line is Chewton's route and thin blue lines are the brigades that were paged. Dashed lines are straight-line placeholders where road geometry hasn't been stored."),
         do.call(shiny::tags$ul, lapply(limits_text, shiny::tags$li))
       )
