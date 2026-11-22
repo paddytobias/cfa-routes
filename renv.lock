@@ -1022,49 +1022,6 @@
       "Maintainer": "David Cooley <dcooley@symbolix.com.au>",
       "Repository": "CRAN"
     },
-    "googleway": {
-      "Package": "googleway",
-      "Version": "2.7.8",
-      "Source": "Repository",
-      "Type": "Package",
-      "Title": "Accesses Google Maps APIs to Retrieve Data and Plot Maps",
-      "Date": "2023-08-22",
-      "Authors@R": "c( person(\"David\", \"Cooley\", ,\"dcooley@symbolix.com.au\", role = c(\"aut\", \"cre\")), person(\"Paulo\", \"Barcelos\", role = \"ctb\", comment = \"Author of c++ decode_pl\"), person(\"Rstudio\", role = \"ctb\", comment = \"Functions written for the Leaflet pacakge\") )",
-      "Description": "Provides a mechanism to plot a 'Google Map' from 'R' and overlay it with shapes and markers. Also provides access to 'Google Maps' APIs, including places, directions, roads, distances, geocoding, elevation and timezone.",
-      "License": "MIT + file LICENSE",
-      "LazyData": "TRUE",
-      "Depends": [
-        "R (>= 2.10.0)"
-      ],
-      "Imports": [
-        "jsonlite (>= 0.9.20)",
-        "curl",
-        "htmlwidgets",
-        "htmltools",
-        "magrittr",
-        "shiny",
-        "jpeg",
-        "utils",
-        "jqr",
-        "viridisLite",
-        "scales",
-        "grDevices",
-        "googlePolylines (>= 0.7.1)"
-      ],
-      "RoxygenNote": "7.2.3",
-      "BugReports": "https://github.com/SymbolixAU/googleway/issues",
-      "Suggests": [
-        "knitr",
-        "rmarkdown",
-        "testthat"
-      ],
-      "VignetteBuilder": "knitr",
-      "Encoding": "UTF-8",
-      "NeedsCompilation": "no",
-      "Author": "David Cooley [aut, cre], Paulo Barcelos [ctb] (Author of c++ decode_pl), Rstudio [ctb] (Functions written for the Leaflet pacakge)",
-      "Maintainer": "David Cooley <dcooley@symbolix.com.au>",
-      "Repository": "CRAN"
-    },
     "highr": {
       "Package": "highr",
       "Version": "0.12",
@@ -1305,56 +1262,6 @@
       "Config/roxygen2/version": "8.0.0",
       "NeedsCompilation": "no",
       "Author": "Jeroen Ooms [aut, cre] (ORCID: <https://orcid.org/0000-0002-4035-0289>)",
-      "Maintainer": "Jeroen Ooms <jeroenooms@gmail.com>",
-      "Repository": "CRAN"
-    },
-    "jpeg": {
-      "Package": "jpeg",
-      "Version": "0.1-11",
-      "Source": "Repository",
-      "Title": "Read and write JPEG images",
-      "Author": "Simon Urbanek [aut, cre, cph] (https://urbanek.org, <https://orcid.org/0000-0003-2297-1732>)",
-      "Authors@R": "person(\"Simon\", \"Urbanek\", role=c(\"aut\",\"cre\",\"cph\"), email=\"Simon.Urbanek@r-project.org\", comment=c(\"https://urbanek.org\", ORCID=\"0000-0003-2297-1732\"))",
-      "Maintainer": "Simon Urbanek <Simon.Urbanek@r-project.org>",
-      "Depends": [
-        "R (>= 2.9.0)"
-      ],
-      "Description": "This package provides an easy and simple way to read, write and display bitmap images stored in the JPEG format. It can read and write both files and in-memory raw vectors.",
-      "License": "GPL-2 | GPL-3",
-      "SystemRequirements": "libjpeg",
-      "URL": "https://www.rforge.net/jpeg/",
-      "BugReports": "https://github.com/s-u/jpeg/issues",
-      "NeedsCompilation": "yes",
-      "Repository": "CRAN"
-    },
-    "jqr": {
-      "Package": "jqr",
-      "Version": "1.4.0",
-      "Source": "Repository",
-      "Title": "Client for 'jq', a 'JSON' Processor",
-      "Description": "Client for 'jq', a 'JSON' processor (<https://jqlang.github.io/jq/>),  written in C. 'jq' allows the following with 'JSON' data: index into, parse,  do calculations, cut up and filter, change key names and values, perform  conditionals and comparisons, and more.",
-      "Depends": [
-        "R (>= 3.1.2)"
-      ],
-      "License": "MIT + file LICENSE",
-      "Encoding": "UTF-8",
-      "Language": "en-US",
-      "LazyData": "true",
-      "Authors@R": "c(person(\"Rich\", \"FitzJohn\", role = \"aut\", email = \"rich.fitzjohn@gmail.com\"), person(\"Jeroen\", \"Ooms\", role = c(\"aut\", \"cre\"), email = \"jeroenooms@gmail.com\"), person(\"Scott\", \"Chamberlain\", role = \"aut\", email = \"myrmecocystus@gmail.com\"), person(\"Stefan Milton Bache\", role = \"aut\", email = \"stefan@stefanbache.dk\"))",
-      "URL": "https://docs.ropensci.org/jqr/ https://ropensci.r-universe.dev/jqr",
-      "BugReports": "https://github.com/ropensci/jqr/issues",
-      "SystemRequirements": "libjq: jq-devel (rpm) or libjq-dev (deb)",
-      "Imports": [
-        "magrittr",
-        "lazyeval"
-      ],
-      "Suggests": [
-        "jsonlite",
-        "testthat"
-      ],
-      "RoxygenNote": "7.3.2.9000",
-      "NeedsCompilation": "yes",
-      "Author": "Rich FitzJohn [aut], Jeroen Ooms [aut, cre], Scott Chamberlain [aut], Stefan Milton Bache [aut]",
       "Maintainer": "Jeroen Ooms <jeroenooms@gmail.com>",
       "Repository": "CRAN"
     },
