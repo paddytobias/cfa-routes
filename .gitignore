@@ -15,3 +15,5 @@ outputs/
 .kiro/
 .agents/
 skills-lock.json
+
+archive/
