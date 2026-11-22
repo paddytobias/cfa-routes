@@ -114,6 +114,22 @@ routed <- suppressWarnings(route_pending(pc, client, with_elevation = FALSE))
 stopifnot(identical(sort(routed), c("F1", "F2")), calls$routes == 6)
 after <- DBI::dbGetQuery(pc, "SELECT event, station, fetched_at FROM routes ORDER BY event, station")
 stopifnot(nrow(after) == 6, identical(merge(before, after)[, 1:3], before))
+
+# an address Google can't place is retried only max_attempts times, then left alone
+fails <- DBI::dbGetQuery(pc, "SELECT kind, attempts FROM failures")
+stopifnot(identical(fails$kind, "geocode_incidents"), fails$attempts == 3)
+g <- calls$geocode
+invisible(suppressWarnings(route_pending(pc, client, with_elevation = FALSE)))
+stopifnot(calls$geocode == g)
+
+# a route that keeps erroring is likewise given up on
+bad <- function(method, url, ...) if (grepl("geocode", url)) fake(method, url) else stop("boom")
+bc <- db_connect(":memory:")
+db_upsert_stations(bc, data.frame(station = "Chewton", code = "CCHEW", address = "a"))
+invisible(db_add_incidents(bc, alerts("F1", "2026-11-14 20:18:53")))
+bclient <- google_client("k", bad); calls$routes <- 0
+for (i in 1:5) route_pending(bc, bclient, with_elevation = FALSE)
+stopifnot(DBI::dbGetQuery(bc, "SELECT attempts FROM failures WHERE kind = 'route'")$attempts == 3)
 cat("pipeline tests passed\n")
 
 # ---- polylines: stored with routes, backfilled for the routes that matter, snapshot untouched

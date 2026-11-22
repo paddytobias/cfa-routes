@@ -13,7 +13,9 @@ schema <- c(
      departure_time INTEGER, distance_km REAL, duration_traffic_min REAL, duration_free_flow_min REAL,
      traffic_delay_min REAL, pct_normal REAL, pct_slow REAL, pct_jam REAL,
      elev_gain_m REAL, elev_loss_m REAL, elev_max_m REAL, elev_min_m REAL, max_climb_grade_pct REAL,
-     error TEXT, fetched_at INTEGER NOT NULL, polyline TEXT, PRIMARY KEY (event, station))"
+     error TEXT, fetched_at INTEGER NOT NULL, polyline TEXT, PRIMARY KEY (event, station))",
+  "CREATE TABLE IF NOT EXISTS failures (
+     kind TEXT NOT NULL, key TEXT NOT NULL, attempts INTEGER NOT NULL, PRIMARY KEY (kind, key))"
 )
 
 route_cols <- c("distance_km", "duration_traffic_min", "duration_free_flow_min", "traffic_delay_min",
@@ -53,6 +55,26 @@ ensure_column <- function(con, table, column, type) {
     DBI::dbExecute(con, sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, column, type))
   }
   invisible(con)
+}
+
+# ---- failed attempts ----------------------------------------------------------
+
+# Google requests that failed, counted per item, so a permanently bad address or
+# route stops costing a request on every run. `kind` names the step (geocode_incidents,
+# geocode_stations, route, polyline); `key` identifies the item ("event|station" for routes).
+db_note_failures <- function(con, kind, keys) {
+  if (length(keys) == 0) return(invisible(con))
+  DBI::dbExecute(con, "
+    INSERT INTO failures (kind, key, attempts) VALUES (?, ?, 1)
+    ON CONFLICT(kind, key) DO UPDATE SET attempts = attempts + 1",
+    params = list(rep(kind, length(keys)), as.character(keys)))
+  invisible(con)
+}
+
+# Keys of `kind` that have failed `max_attempts` times and should no longer be tried.
+db_exhausted <- function(con, kind, max_attempts) {
+  DBI::dbGetQuery(con, "SELECT key FROM failures WHERE kind = ? AND attempts >= ?",
+                  params = list(kind, as.integer(max_attempts)))$key
 }
 
 # ---- stations ---------------------------------------------------------------
