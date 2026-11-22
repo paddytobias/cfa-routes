@@ -1,0 +1,63 @@
+name: Daily update
+
+# Pull new PagerMon alerts, route them with Google, commit the updated database and
+# redeploy the Shiny app (which bundles the database) to shinyapps.io.
+# 20:00 UTC is 07:00 in Melbourne (AEDT).
+on:
+  schedule:
+    - cron: "0 20 * * *"
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: Deploy even if no new data was found
+        type: boolean
+        default: false
+
+# One run at a time, so two runs can't overwrite each other's database.
+concurrency:
+  group: daily-update
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    env:
+      GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+      CARTO_BASEMAP_URL: ${{ secrets.CARTO_BASEMAP_URL }}
+      SHINYAPPS_NAME: ${{ secrets.SHINYAPPS_NAME }}
+      SHINYAPPS_TOKEN: ${{ secrets.SHINYAPPS_TOKEN }}
+      SHINYAPPS_SECRET: ${{ secrets.SHINYAPPS_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          cache-version: 1
+
+      - name: Extract and route new incidents
+        run: Rscript extract_incidents.R
+
+      - name: Commit updated database
+        id: commit
+        run: |
+          if git diff --quiet -- data/cfa_routes.sqlite; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add data/cfa_routes.sqlite
+            git commit -m "Daily data update"
+            git push
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy to shinyapps.io
+        if: steps.commit.outputs.changed == 'true' || inputs.force_deploy
+        run: Rscript deploy.R

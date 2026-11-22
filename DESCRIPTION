@@ -1,0 +1,13 @@
+Package: cfaroutes
+Title: CFA Route Comparison
+Version: 0.0.1
+Description: Shiny app and data pipeline. This file only lists dependencies for CI.
+Imports:
+    shiny,
+    leaflet,
+    DBI,
+    RSQLite,
+    curl,
+    jsonlite,
+    googlePolylines,
+    rsconnect

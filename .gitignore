@@ -1,0 +1,17 @@
+# Secrets and local config
+.Renviron
+.Rhistory
+.RData
+.Rproj.user/
+
+# Deployment state and generated output
+rsconnect/
+results/
+outputs/
+
+# Editor / assistant tooling
+.posit/
+.claude/
+.kiro/
+.agents/
+skills-lock.json
