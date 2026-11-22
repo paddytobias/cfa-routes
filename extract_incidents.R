@@ -17,7 +17,15 @@ searches <- c("CASTLEMAINE BRIGADE", "HARCOURT", "CAMPBELLS CREEK", "ELPHINSTONE
               "TARADALE BRIGADE", "CHEWTON BRIGADE")
 
 client <- pagermon_client(base_url)
-messages <- unlist(lapply(searches, function(q) fetch_all_pages(client, q)), recursive = FALSE)
+# If the feed is unreachable (e.g. its TLS certificate expired), stop quietly: nothing new
+# can be added, and the data already stored is left alone. The warning shows on the Actions run.
+messages <- tryCatch(
+  unlist(lapply(searches, function(q) fetch_all_pages(client, q)), recursive = FALSE),
+  error = function(e) {
+    message("::warning title=PagerMon unreachable::", conditionMessage(e))
+    quit(save = "no", status = 0)
+  }
+)
 
 alerts <- parse_alerts(messages)
 local <- alerts[is_local(alerts, local_codes), ]
