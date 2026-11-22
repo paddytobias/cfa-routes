@@ -4,6 +4,7 @@ Version: 0.0.1
 Description: Shiny app and data pipeline. This file only lists dependencies for CI.
 Imports:
     shiny,
+    bslib,
     leaflet,
     DBI,
     RSQLite,
