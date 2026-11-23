@@ -86,7 +86,7 @@ headline <- function(summary, margin_min) {
 incident_detail <- function(comparison, incident, home = "Chewton", speed_factor = 1, handicap_min = 0) {
   rows <- comparison[comparison$incident == incident, ]
   eta <- rows$duration_traffic_min / speed_factor + ifelse(rows$station == home, handicap_min, 0)
-  out <- data.frame(Station = rows$station,
+  out <- data.frame(Brigade = rows$station,
                     Paged = ifelse(rows$station_paged %in% TRUE, "Yes", "No"),
                     `ETA (min)` = eta, `Distance (km)` = rows$distance_km,
                     `Traffic delay (min)` = rows$traffic_delay_min, check.names = FALSE)
