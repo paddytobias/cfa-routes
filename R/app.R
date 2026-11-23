@@ -56,7 +56,7 @@ app_ui <- function() {
   bslib::page_navbar(
     title = "Chewton CFA: would we have been quicker?",
     theme = app_theme(),
-    fillable = FALSE,
+    fillable = "All incidents",
     sidebar = bslib::sidebar(
       width = 320,
       shiny::selectInput("incident", "Incident (or click a marker)", choices = NULL),
@@ -82,7 +82,7 @@ app_ui <- function() {
     bslib::nav_panel(
       "All incidents", icon = shiny::icon("table-list"), class = "bslib-page-dashboard",
       bslib::card(bslib::card_header("All incidents"), full_screen = TRUE,
-                  shiny::div(class = "table-responsive", shiny::tableOutput("table")))
+                  DT::DTOutput("table"))
     ),
     bslib::nav_panel(
       "About", icon = shiny::icon("circle-info"), class = "bslib-page-dashboard",
@@ -102,6 +102,24 @@ table_for_display <- function(v) {
     `Chewton ETA (min)` = v$chewton_eta, `First paged` = ifelse(is.na(v$first_paged), NA, sprintf("%s (%.1f min)", v$first_paged, v$first_paged_eta)),
     `Minutes ahead` = v$minutes_ahead, Verdict = as.character(v$verdict), check.names = FALSE
   )
+}
+
+# Searchable, sortable version of the table. "When" is text, so a hidden epoch column
+# drives its sort order; the table opens newest first.
+incidents_datatable <- function(v) {
+  tab <- table_for_display(v)
+  tab$`Sort key` <- as.numeric(v$event_time[order(-v$minutes_ahead, na.last = TRUE)])
+  key <- ncol(tab) - 1L  # 0-based index for DataTables
+  DT::datatable(
+    tab, rownames = FALSE, fillContainer = TRUE, class = "table table-striped table-sm", options = list(
+      order = list(list(0L, "desc")),
+      columnDefs = list(
+        list(orderData = key, targets = 0L),
+        list(visible = FALSE, targets = key)
+      ),
+      pageLength = 25, scrollX = TRUE, language = list(emptyTable = "No incidents")
+    )
+  ) |> DT::formatRound(c("Chewton ETA (min)", "Minutes ahead"), 1)
 }
 
 app_server <- function(data, home = "Chewton") {
@@ -134,12 +152,11 @@ app_server <- function(data, home = "Chewton") {
       kpi_boxes(case_summary(verdicts()), input$margin)
     })
 
-    output$table <- shiny::renderTable({ selected_ok(); table_for_display(verdicts()) },
-                                       striped = TRUE, digits = 1, na = "–")
+    output$table <- DT::renderDT({ selected_ok(); incidents_datatable(verdicts()) })
     output$detail <- shiny::renderTable({
       selected_ok(); shiny::req(input$incident)
       incident_detail(data$comparison, input$incident, home, input$speed, input$handicap)
-    }, striped = TRUE, digits = 1)
+    }, striped = TRUE, digits = 1, width = "100%")
 
     output$download <- shiny::downloadHandler(
       filename = function() sprintf("chewton_vs_paged_%s.csv", format(Sys.Date())),

@@ -32,7 +32,11 @@ shiny::testServer(app_server(data), {
   stopifnot(verdicts()$verdict[verdicts()$incident == "a"] == "Within margin")
   tab <- table_for_display(verdicts())
   stopifnot(nrow(tab) == 3, names(tab)[1:2] == c("When", "Incident"), tab$Incident[3] == "ADDR d")   # most negative last
-  stopifnot(all(vapply(c("ADDR a", "ADDR d", "ADDR x"), function(a) pos(output$table, a) > 0, TRUE)))
+  dt <- incidents_datatable(verdicts())$x
+  stopifnot(setequal(dt$data$Incident, c("ADDR a", "ADDR d", "ADDR x")),
+            identical(dt$options$order[[1]], list(0L, "desc")),
+            # the hidden key is the event time, aligned with the rows shown
+            identical(dt$data$`Sort key`, as.numeric(verdicts()$event_time[match(dt$data$Incident, paste("ADDR", verdicts()$incident))])))
 
   session$setInputs(handicap = 0, speed = 0.5)                                                # everyone twice as slow: gaps double
   stopifnot(all.equal(verdicts()$minutes_ahead[verdicts()$incident == "a"], 6))

@@ -7,6 +7,7 @@ Imports:
     bslib,
     leaflet,
     DBI,
+    DT,
     RSQLite,
     curl,
     jsonlite,
