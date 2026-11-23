@@ -16,8 +16,13 @@ local_codes <- c("CCHEW", "CCAMP", "CCMAI", "CHARC", "CELPH", "CTARA",
 searches <- c("CASTLEMAINE BRIGADE", "HARCOURT", "CAMPBELLS CREEK", "ELPHINSTONE BRIGADE",
               "TARADALE BRIGADE", "CHEWTON BRIGADE")
 
-client <- pagermon_client(base_url)
-# If the feed is unreachable (e.g. its TLS certificate expired), stop quietly: nothing new
+# Trust this host's TLS certificate even when it is expired or invalid (its Let's Encrypt
+# certificate has lapsed before). This applies only to the PagerMon client: the feed is public
+# alert text, and Google requests keep full verification.
+client <- pagermon_client(base_url, transport = with_retry(
+  function(method, url, ...) curl_transport(method, url, ..., insecure = TRUE)
+))
+# If the feed is unreachable (e.g. a connection failure), stop quietly: nothing new
 # can be added, and the data already stored is left alone. The warning shows on the Actions run.
 messages <- tryCatch(
   unlist(lapply(searches, function(q) fetch_all_pages(client, q)), recursive = FALSE),

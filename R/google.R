@@ -8,8 +8,9 @@ route_field_mask <- paste(
   sep = ","
 )
 
-curl_transport <- function(method, url, body = NULL, headers = list()) {
+curl_transport <- function(method, url, body = NULL, headers = list(), insecure = FALSE) {
   h <- curl::new_handle(customrequest = method)
+  if (insecure) curl::handle_setopt(h, ssl_verifypeer = FALSE, ssl_verifyhost = 0L)
   if (!is.null(body)) {
     curl::handle_setopt(h, postfields = charToRaw(jsonlite::toJSON(body, auto_unbox = TRUE)))
     headers[["Content-Type"]] <- "application/json"
