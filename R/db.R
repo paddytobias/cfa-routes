@@ -14,6 +14,11 @@ schema <- c(
      traffic_delay_min REAL, pct_normal REAL, pct_slow REAL, pct_jam REAL,
      elev_gain_m REAL, elev_loss_m REAL, elev_max_m REAL, elev_min_m REAL, max_climb_grade_pct REAL,
      error TEXT, fetched_at INTEGER NOT NULL, polyline TEXT, PRIMARY KEY (event, station))",
+  "CREATE TABLE IF NOT EXISTS grid_cells (
+     cell_id TEXT PRIMARY KEY, lat REAL NOT NULL, lng REAL NOT NULL, dist_km REAL NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS cell_times (
+     cell_id TEXT NOT NULL REFERENCES grid_cells(cell_id), station TEXT NOT NULL REFERENCES stations(station),
+     duration_s REAL, distance_m REAL, error TEXT, fetched_at INTEGER NOT NULL, PRIMARY KEY (cell_id, station))",
   "CREATE TABLE IF NOT EXISTS failures (
      kind TEXT NOT NULL, key TEXT NOT NULL, attempts INTEGER NOT NULL, PRIMARY KEY (kind, key))"
 )
@@ -196,6 +201,45 @@ db_pairs_without_polyline <- function(con, home = "Chewton") {
 db_set_polylines <- function(con, rows) {
   invisible(DBI::dbExecute(con, "UPDATE routes SET polyline = ? WHERE event = ? AND station = ?",
                            params = unname(as.list(rows[c("polyline", "event", "station")]))))
+}
+
+# ---- grid cells (travel time from every station to every point) -----------------
+
+# Cells already stored are left alone, so widening the grid only adds the new ones.
+db_add_cells <- function(con, cells) {
+  invisible(DBI::dbExecute(con, "INSERT OR IGNORE INTO grid_cells (cell_id, lat, lng, dist_km) VALUES (?, ?, ?, ?)",
+                           params = unname(as.list(cells[c("cell_id", "lat", "lng", "dist_km")]))))
+}
+
+db_read_cells <- function(con) {
+  DBI::dbGetQuery(con, "SELECT cell_id, lat, lng, dist_km FROM grid_cells ORDER BY dist_km, cell_id")
+}
+
+# Cell/station pairs with no successful time yet, nearest cells first, so a capped
+# run completes whole cells around the centre. Adding a station only fetches its column.
+db_missing_cell_pairs <- function(con) {
+  DBI::dbGetQuery(con, "
+    SELECT c.cell_id, s.station FROM grid_cells c CROSS JOIN stations s
+    LEFT JOIN cell_times t ON t.cell_id = c.cell_id AND t.station = s.station AND t.error IS NULL
+    WHERE t.cell_id IS NULL AND s.lat IS NOT NULL
+    ORDER BY c.dist_km, c.cell_id, s.rowid")
+}
+
+# `rows` as returned by parse_matrix().
+db_save_cell_times <- function(con, rows, now = Sys.time()) {
+  rows$fetched_at <- to_epoch(now)
+  cols <- c("cell_id", "station", "duration_s", "distance_m", "error", "fetched_at")
+  invisible(DBI::dbExecute(con, "
+    INSERT OR REPLACE INTO cell_times (cell_id, station, duration_s, distance_m, error, fetched_at)
+    VALUES (?, ?, ?, ?, ?, ?)", params = unname(as.list(rows[cols]))))
+}
+
+# Successful times with the cell's position, for cell_time_matrix() and the map.
+db_read_cell_times <- function(con) {
+  DBI::dbGetQuery(con, "
+    SELECT t.cell_id, c.lat, c.lng, t.station, t.duration_s, t.distance_m
+    FROM cell_times t JOIN grid_cells c ON c.cell_id = t.cell_id
+    WHERE t.error IS NULL ORDER BY c.dist_km, t.cell_id, t.station")
 }
 
 # One row per station: how often it is fastest, and typical ETA.

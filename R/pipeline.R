@@ -59,3 +59,32 @@ backfill_polylines <- function(con, client, home = "Chewton", max_routes = 50L, 
   db_set_polylines(con, found)
   nrow(found)
 }
+
+# Fetch free-flow times from each station to the stored grid cells that lack one,
+# nearest cells first, stopping after `max_elements` station/cell pairs (Google bills
+# per pair). Results are saved after every request, so a stopped run resumes where it
+# left off. Pairs that fail `max_attempts` times are skipped. Returns pairs fetched.
+fetch_cell_times <- function(con, client, max_elements = 600L, chunk = 200L, max_attempts = 3L,
+                             sleep = Sys.sleep) {
+  pairs <- db_missing_cell_pairs(con)
+  pairs <- pairs[!pair_key(pairs$cell_id, pairs$station) %in% db_exhausted(con, "cell_time", max_attempts), ]
+  pairs <- head(pairs, max_elements)
+  if (nrow(pairs) == 0) return(0L)
+  stations <- db_read_stations(con)
+  cells <- db_read_cells(con)
+  fetched <- 0L
+  for (station in unique(pairs$station)) {
+    ids <- pairs$cell_id[pairs$station == station]
+    for (batch in split(ids, ceiling(seq_along(ids) / chunk))) {
+      dest <- cells[match(batch, cells$cell_id), ]
+      resp <- client$matrix(matrix_request(stations[stations$station == station, ], dest))
+      rows <- parse_matrix(resp, station, batch)
+      db_save_cell_times(con, rows)
+      db_note_failures(con, "cell_time", pair_key(rows$cell_id, rows$station)[!is.na(rows$error)])
+      fetched <- fetched + nrow(rows)
+      message(sprintf("%s: %d/%d cells ok", station, sum(is.na(rows$error)), nrow(rows)))
+      sleep(chunk / 50)   # stay under Google's 3,000 elements/minute
+    }
+  }
+  fetched
+}

@@ -6,7 +6,7 @@ Would Chewton CFA have reached local incidents faster than the brigades that wer
 
 ## How it works
 
-1. `extract_incidents.R` pulls recent alerts for Chewton and its neighbouring brigades (Castlemaine, Campbells Creek, Harcourt, Elphinstone, Taradale) from a [PagerMon](https://github.com/pagermon/pagermon) feed and stores new incidents in a SQLite database.
+1. `extract_incidents.R` pulls recent alerts for Chewton and its neighbouring brigades (Castlemaine, Campbells Creek, Harcourt, Elphinstone, Taradale, Fryerstown) from a [PagerMon](https://github.com/pagermon/pagermon) feed and stores new incidents in a SQLite database.
 2. New incidents and stations are geocoded, then routed from every station with the Google Maps Routes API, which supplies predicted traffic-aware travel times and road geometry.
 3. The app reads the database and, for each incident, compares Chewton's estimated arrival with the first paged brigade.
 
@@ -41,6 +41,17 @@ Rscript extract_incidents.R   # fetch, geocode and route new incidents
 Rscript run.R                 # route pending incidents and write results/route_comparison.csv
 ```
 
+### Turnout zones
+
+The **Turnout zones** tab maps where Chewton would arrive first, second or later across the district, using the speed factor, Chewton turnout time and margin from the sidebar, plus a "brigades unable to respond" scenario. It needs travel times from every station to a 1 km grid within 25 km of Chewton:
+
+```sh
+Rscript fetch_grid.R         # pilot: 600 station/cell pairs, nearest Chewton first
+Rscript fetch_grid.R 20000   # the rest (about 12,000 pairs in all); re-running resumes
+```
+
+Google bills per station/cell pair, so check the charge after the pilot. To add a brigade, add it to `config/stations.csv` and re-run: only its column is fetched. The map outlines Chewton's primary turnout area from `data/turnout_area.geojson`, loaded at startup; replace that file to change it.
+
 Optionally set `CARTO_BASEMAP_URL` for keyed Carto map tiles; the app falls back to the free tiles without it.
 
 ### Tests
@@ -52,6 +63,7 @@ Rscript tests/test_pure.R
 Rscript tests/test_db.R
 Rscript tests/test_case.R
 Rscript tests/test_app.R
+Rscript tests/test_zones.R
 ```
 
 ## Deployment
@@ -66,6 +78,8 @@ The workflow needs these repository secrets: `GOOGLE_MAPS_API_KEY`, `CARTO_BASEM
 | --- | --- |
 | `app.R` | Shiny entry point |
 | `R/` | App UI and server, database, Google and PagerMon clients, analysis |
+| `fetch_grid.R` | Fetch station-to-grid travel times for the turnout zones map |
 | `config/stations.csv` | Stations and their pager codes |
 | `data/cfa_routes.sqlite` | Stored incidents, routes and geometry |
+| `data/turnout_area.geojson` | Chewton's primary turnout area, outlined on the Turnout zones map |
 | `tests/` | Offline tests |

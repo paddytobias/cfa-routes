@@ -21,11 +21,13 @@ app_name <- "cfa-routes"
 # removed once the deploy finishes.
 app_env_vars <- "CARTO_BASEMAP_URL"
 
-app_files <- c("app.R", ".Renviron", list.files("R", full.names = TRUE), "data/cfa_routes.sqlite")
+app_files <- c("app.R", ".Renviron", list.files("R", full.names = TRUE), "data/cfa_routes.sqlite",
+               "data/turnout_area.geojson")
 
 stopifnot(
   "Run this from the project folder." = file.exists("app.R"),
-  "data/cfa_routes.sqlite not found; run run.R first." = file.exists("data/cfa_routes.sqlite")
+  "data/cfa_routes.sqlite not found; run run.R first." = file.exists("data/cfa_routes.sqlite"),
+  "data/turnout_area.geojson not found; the Turnout zones map needs it." = file.exists("data/turnout_area.geojson")
 )
 if (!requireNamespace("rsconnect", quietly = TRUE)) stop("Install rsconnect first: install.packages('rsconnect')", call. = FALSE)
 
@@ -46,6 +48,7 @@ local({
   on.exit(DBI::dbDisconnect(con))
   d <- load_case_data(con)
   message("Data loads: ", nrow(d$comparison), " route rows, ", nrow(d$polylines), " with road geometry")
+  stopifnot("data/turnout_area.geojson didn't load as GeoJSON." = !is.null(d$turnout_area))
 })
 
 env_values <- Sys.getenv(app_env_vars)

@@ -7,7 +7,7 @@
 
 for (f in list.files("R", full.names = TRUE)) source(f)
 
-# Each incident costs one route request per station (4 by default).
+# Each incident costs one route request per station (one per station in config/stations.csv).
 max_incidents <- 5
 # Set FALSE if the key isn't enabled for the Elevation API; elevation columns will be NA.
 with_elevation <- FALSE

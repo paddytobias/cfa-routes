@@ -4,9 +4,11 @@
 limits_text <- list(
   "Times are Google's predicted travel times for the same weekday and time of day next week, not the traffic on the night. They are for ordinary cars at legal speeds, not a fire appliance with lights and sirens (use the speed factor to adjust).",
   "Times run from each station to the incident. They exclude time to get crews to the station and the truck out. Use the turnout slider to see whether Chewton's lead survives a delay that others don't have.",
-  "Only the six brigades in this analysis can be compared. If a paged brigade isn't one of them, the comparison is incomplete and is hidden by default.",
+  "Only the brigades listed in config/stations.csv can be compared. If a paged brigade isn't one of them, the comparison is incomplete and is hidden by default.",
   "Chewton's pager isn't on the feed these incidents come from, so incidents where only Chewton was paged are not in the data. The incidents shown are ones where neighbouring brigades were paged, which are mostly in their areas. They are not a random sample of the district.",
-  "The list shows every incident, including those where Chewton would have been slower."
+  "The list shows every incident, including those where Chewton would have been slower.",
+  "The turnout zones map shows squares within 12 km of Chewton and uses free-flow car times to the nearest road from the centre of each 1 km square, with no traffic. Squares in bush or off the road network are placed at the nearest road, so they can look more reachable than they are.",
+  "Only the brigades in config/stations.csv compete on the zone map. Near the edge of the district a brigade that isn't listed may be closer than any shown, so Chewton's first and second zones are overstated there. These zones follow travel time alone, not CFA's actual pager rules."
 )
 
 app_theme <- function() {
@@ -78,6 +80,17 @@ app_ui <- function() {
       ),
       bslib::card(bslib::card_header("Selected incident"),
                   shiny::div(class = "table-responsive", shiny::tableOutput("detail")))
+    ),
+    bslib::nav_panel(
+      "Turnout zones", icon = shiny::icon("bullseye"), class = "bslib-page-dashboard",
+      bslib::card(
+        bslib::card_header("Where would Chewton be first or second on scene?"),
+        full_screen = TRUE,
+        shiny::uiOutput("zone_note"),
+        shiny::checkboxInput("outline_contested", "Outline squares where Chewton is within the margin of the next brigade", TRUE),
+        shiny::checkboxGroupInput("excluded", "Brigades unable to respond", choices = NULL, inline = TRUE),
+        leaflet::leafletOutput("zone_map", height = "65vh")
+      )
     ),
     bslib::nav_panel(
       "All incidents", icon = shiny::icon("table-list"), class = "bslib-page-dashboard",
@@ -166,6 +179,39 @@ app_server <- function(data, home = "Chewton") {
     output$map <- leaflet::renderLeaflet(base_map(data$stations))
     shiny::observe({
       add_incident_markers(leaflet::leafletProxy("map"), verdicts(), data$points)
+    })
+
+    zone_times <- data$cell_times %||% data.frame(duration_s = numeric())
+    if (nrow(zone_times) > 0) zone_times <- within_radius(zone_times, data$stations[data$stations$station == home, ])
+    zone_matrix <- cell_time_matrix(zone_times)
+    has_zones <- nrow(zone_matrix) > 0 && home %in% colnames(zone_matrix)
+    zones <- shiny::reactive({
+      shiny::req(has_zones)
+      rank_cells(zone_matrix, home, input$speed, input$handicap, input$excluded, input$margin)
+    })
+    zone_cells <- if (has_zones) unique(zone_times[c("cell_id", "lat", "lng")]) else NULL
+    zone_tiles <- if (has_zones) cell_bounds(zone_cells, grid_spacing_km(zone_cells)) else NULL
+
+    output$zone_note <- shiny::renderUI({
+      shiny::validate(shiny::need(has_zones, "No grid stored yet. Run fetch_grid.R to fetch travel times to a grid of points."))
+      share <- zone_summary(zones())
+      shiny::p(class = "kpi-note", sprintf(
+        "Of %d squares mapped within %g km of %s: %s. Uses the speed factor, Chewton turnout time and margin in the sidebar.%s",
+        sum(share), zone_radius_km, home, paste(sprintf("%.0f%% %s", 100 * share / max(1, sum(share)), tolower(names(share))), collapse = ", "),
+        if (is.null(data$turnout_area)) "" else paste(" Dashed outline:", data$turnout_area$caption)))
+    })
+    output$zone_map <- leaflet::renderLeaflet({
+      m <- zone_map(data$stations, home, data$turnout_area)
+      if (has_zones) leaflet::fitBounds(m, min(zone_tiles$lng1), min(zone_tiles$lat1), max(zone_tiles$lng2), max(zone_tiles$lat2)) else m
+    })
+    shiny::updateCheckboxGroupInput(session, "excluded", choices = setdiff(data$stations$station, home))
+    # The map isn't created until its tab is first shown, and proxy calls made before then are
+    # lost. Leaflet reports its bounds once drawn, so wait for that; being a reactive that
+    # yields TRUE/FALSE, this only re-runs the observer once, not on every pan or zoom.
+    zone_map_ready <- shiny::reactive(!is.null(input$zone_map_bounds))
+    shiny::observe({
+      shiny::req(zone_map_ready())
+      add_zone_cells(leaflet::leafletProxy("zone_map"), zones(), zone_tiles, input$outline_contested, home)
     })
 
     # keep the picker in step with the filtered list, and let a marker click choose

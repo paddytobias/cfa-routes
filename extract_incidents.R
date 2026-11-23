@@ -11,10 +11,10 @@
 for (f in list.files("R", full.names = TRUE)) source(f)
 
 base_url <- "https://eas.tehintartubes.net"
-local_codes <- c("CCHEW", "CCAMP", "CCMAI", "CHARC", "CELPH", "CTARA",
-                 "CHEW", "CAMP", "CMAI", "HARC", "ELPH", "TARA")
+local_codes <- c("CCHEW", "CCAMP", "CCMAI", "CHARC", "CELPH", "CTARA", "CFRYE",
+                 "CHEW", "CAMP", "CMAI", "HARC", "ELPH", "TARA", "FRYE")
 searches <- c("CASTLEMAINE BRIGADE", "HARCOURT", "CAMPBELLS CREEK", "ELPHINSTONE BRIGADE",
-              "TARADALE BRIGADE", "CHEWTON BRIGADE")
+              "TARADALE BRIGADE", "CHEWTON BRIGADE", "FRYERSTOWN BRIGADE")
 
 # Trust this host's TLS certificate even when it is expired or invalid (its Let's Encrypt
 # certificate has lapsed before). This applies only to the PagerMon client: the feed is public

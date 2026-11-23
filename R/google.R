@@ -8,6 +8,9 @@ route_field_mask <- paste(
   sep = ","
 )
 
+matrix_url <- "https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix"
+matrix_field_mask <- "originIndex,destinationIndex,duration,distanceMeters,status,condition"
+
 curl_transport <- function(method, url, body = NULL, headers = list(), insecure = FALSE) {
   h <- curl::new_handle(customrequest = method)
   if (insecure) curl::handle_setopt(h, ssl_verifypeer = FALSE, ssl_verifyhost = 0L)
@@ -54,6 +57,10 @@ google_client <- function(key, transport = with_retry(curl_transport)) {
       "POST", routes_url, body,
       headers = list("X-Goog-Api-Key" = key, "X-Goog-FieldMask" = route_field_mask)
     ),
+    matrix = function(body) transport(
+      "POST", matrix_url, body,
+      headers = list("X-Goog-Api-Key" = key, "X-Goog-FieldMask" = matrix_field_mask)
+    ),
     elevation = function(encoded_path, samples) transport(
       "GET", query_url("https://maps.googleapis.com/maps/api/elevation/json",
                        path = paste0("enc:", encoded_path), samples = samples)
@@ -85,6 +92,44 @@ routes_request <- function(origin, destination, departure_time) {
     extraComputations = list("TRAFFIC_ON_POLYLINE"),
     units = "METRIC"
   )
+}
+
+# One origin to many destinations, free-flow (no traffic): Google bills per element
+# and allows more elements per request when traffic is not requested.
+matrix_request <- function(origin, destinations) {
+  endpoint <- function(p) list(waypoint = waypoint(p))
+  list(
+    origins = list(endpoint(origin)),
+    destinations = lapply(seq_len(nrow(destinations)), function(i) endpoint(destinations[i, ])),
+    travelMode = "DRIVE",
+    routingPreference = "TRAFFIC_UNAWARE",
+    units = "METRIC"
+  )
+}
+
+# The response is an array of elements, one per destination. Proto3 JSON omits zero
+# values, so a missing destinationIndex means 0. Destinations Google leaves out of the
+# response come back as error rows, so they are retried rather than silently dropped.
+parse_matrix <- function(resp, station, cell_ids) {
+  one <- function(el) {
+    ok <- identical(el$condition, "ROUTE_EXISTS")
+    data.frame(
+      cell_id = cell_ids[(el$destinationIndex %||% 0L) + 1L], station = station,
+      duration_s = if (ok) parse_duration_s(el$duration) else NA_real_,
+      distance_m = if (ok) el$distanceMeters %||% 0 else NA_real_,
+      error = if (ok) NA_character_ else el$status$message %||% el$condition %||% "No route",
+      stringsAsFactors = FALSE
+    )
+  }
+  rows <- do.call(rbind, c(list(data.frame(cell_id = character(), station = character(), duration_s = numeric(),
+                                           distance_m = numeric(), error = character())),
+                           lapply(resp, one)))
+  absent <- setdiff(cell_ids, rows$cell_id)
+  if (length(absent)) {
+    rows <- rbind(rows, data.frame(cell_id = absent, station = station, duration_s = NA_real_,
+                                   distance_m = NA_real_, error = "Missing from response"))
+  }
+  rows
 }
 
 parse_route <- function(resp) {

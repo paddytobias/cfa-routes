@@ -20,7 +20,7 @@ add_basemap <- function(map) {
   leaflet::addTiles(map, urlTemplate = url, attribution = "&copy; OpenStreetMap contributors &copy; CARTO")
 }
 
-base_map <- function(stations) {
+station_map <- function(stations) {
   leaflet::leaflet() |>
     leaflet::fitBounds(min(stations$lng) - 0.05, min(stations$lat) - 0.05,
                        max(stations$lng) + 0.05, max(stations$lat) + 0.05) |>
@@ -28,9 +28,54 @@ base_map <- function(stations) {
     leaflet::addCircleMarkers(data = stations, lng = ~lng, lat = ~lat, radius = 9, weight = 3,
                               color = "#000000", fillColor = "#FFFFFF", fillOpacity = 1,
                               label = ~station, labelOptions = leaflet::labelOptions(permanent = TRUE, direction = "top"),
-                              group = "stations") |>
+                              group = "stations")
+}
+
+base_map <- function(stations) {
+  station_map(stations) |>
     leaflet::addLegend("bottomright", colors = unname(verdict_colours), labels = names(verdict_colours),
                        title = "Incident: Chewton vs paged", opacity = 1)
+}
+
+zone_colours <- c("First" = "#0072B2", "Second" = "#E69F00", "Third" = "#009E73",
+                  "Fourth or later" = "#D9D9D9", "No data" = "#FFFFFF")
+
+# The turnout area (from read_turnout_area()) is outlined in its own pane above the zone tiles,
+# so the tiles never cover it.
+zone_map <- function(stations, home = "Chewton", turnout_area = NULL) {
+  shown <- names(zone_colours) != "No data"
+  map <- station_map(stations)
+  if (!is.null(turnout_area)) {
+    map <- map |>
+      leaflet::addMapPane("turnout_area", zIndex = 450) |>
+      leaflet::addGeoJSON(turnout_area$geojson, group = "turnout_area", fill = FALSE, color = "#000000",
+                          weight = 3, opacity = 1, dashArray = "8 6",
+                          options = leaflet::pathOptions(pane = "turnout_area", interactive = FALSE))
+  }
+  map |>
+    leaflet::addLegend("bottomright", colors = unname(zone_colours[shown]),
+                       labels = sprintf("%s %s", home, tolower(names(zone_colours)[shown])),
+                       title = "Arrives", opacity = 1)
+}
+
+zone_popup <- function(z, home = "Chewton") {
+  sprintf("%s arrives <b>%s</b> (%s min)<br>First: %s (%s min)<br>Second: %s (%s min)",
+          home, tolower(z$zone), ifelse(is.na(z$home_eta), "n/a", sprintf("%.1f", z$home_eta)),
+          z$first, sprintf("%.1f", z$first_eta), ifelse(is.na(z$second), "n/a", z$second),
+          ifelse(is.na(z$second_eta), "n/a", sprintf("%.1f", z$second_eta)))
+}
+
+# Replace the zone tiles. `zones` is rank_cells() output and `bounds` cell_bounds(); cells
+# whose lead is within the margin get a dark outline when `outline_contested` is set.
+add_zone_cells <- function(map, zones, bounds, outline_contested = TRUE, home = "Chewton") {
+  map <- leaflet::clearGroup(map, "zones")
+  if (is.null(zones) || nrow(zones) == 0) return(map)
+  d <- merge(zones, bounds, by = "cell_id")
+  d <- d[d$zone != "No data", ]
+  outline <- outline_contested & d$contested
+  leaflet::addRectangles(map, data = d, lng1 = ~lng1, lat1 = ~lat1, lng2 = ~lng2, lat2 = ~lat2,
+                         group = "zones", fillColor = unname(zone_colours[as.character(d$zone)]), fillOpacity = 0.6,
+                         color = "#000000", weight = ifelse(outline, 2, 0), opacity = 1, popup = zone_popup(d, home))
 }
 
 # Replace the incident markers (the map's zoom and the selected routes are untouched).

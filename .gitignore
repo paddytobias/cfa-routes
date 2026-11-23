@@ -17,3 +17,6 @@ outputs/
 skills-lock.json
 
 archive/
+# macOS
+.DS_Store
+*.swp
