@@ -59,6 +59,15 @@ Rscript refresh_stations.R Maldon "Sutton Grange"
 Rscript refresh_stations.R --no-fetch Maldon   # only clear; fetch later
 ```
 
+### Comparing with r5r
+
+`compare_r5r.R` measures how close travel times from [r5r](https://ipeagit.github.io/r5r/) (routing on OpenStreetMap, no API charges) are to the Google times stored in the database, for the incident routes and the zones grid, and how often the two put Chewton in the same turnout zone. It writes nothing to the database. It needs JDK 21, `osmium` and the R packages `r5r` and `data.table`, which are deliberately not listed in `DESCRIPTION` so the deployed app doesn't install them. The first run downloads Victoria's road data (about 250 MB) into `osm/`.
+
+```sh
+Rscript compare_r5r.R
+Rscript tests/test_compare.R   # offline tests for the helpers
+```
+
 Optionally set `CARTO_BASEMAP_URL` for keyed Carto map tiles; the app falls back to the free tiles without it.
 
 ### Tests
@@ -71,6 +80,7 @@ Rscript tests/test_db.R
 Rscript tests/test_case.R
 Rscript tests/test_app.R
 Rscript tests/test_zones.R
+Rscript tests/test_compare.R
 ```
 
 ## Deployment
@@ -85,6 +95,7 @@ The workflow needs these repository secrets: `GOOGLE_MAPS_API_KEY`, `CARTO_BASEM
 | --- | --- |
 | `app.R` | Shiny entry point |
 | `R/` | App UI and server, database, Google and PagerMon clients, analysis |
+| `compare_r5r.R` | Compare r5r travel times with the stored Google times |
 | `refresh_stations.R` | Clear and refetch the results of stations whose coordinates changed |
 | `fetch_grid.R` | Fetch station-to-grid travel times for the turnout zones map |
 | `config/stations.csv` | Stations and their pager codes |

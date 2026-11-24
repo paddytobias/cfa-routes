@@ -20,3 +20,6 @@ archive/
 # macOS
 .DS_Store
 *.swp
+
+# Road network data for the r5r comparison (large; download with compare_r5r.R)
+osm/
