@@ -201,7 +201,7 @@ app_server <- function(data, home = "Chewton") {
         if (is.null(data$turnout_area)) "" else paste(" Dashed outline:", data$turnout_area$caption)))
     })
     output$zone_map <- leaflet::renderLeaflet({
-      m <- zone_map(data$stations, home, data$turnout_area)
+      m <- zone_map(data$stations, home, data$turnout_area, data$incidents)
       if (has_zones) leaflet::fitBounds(m, min(zone_tiles$lng1), min(zone_tiles$lat1), max(zone_tiles$lng2), max(zone_tiles$lat2)) else m
     })
     shiny::updateCheckboxGroupInput(session, "excluded", choices = setdiff(data$stations$station, home))
@@ -212,6 +212,12 @@ app_server <- function(data, home = "Chewton") {
     shiny::observe({
       shiny::req(zone_map_ready())
       add_zone_cells(leaflet::leafletProxy("zone_map"), zones(), zone_tiles, input$outline_contested, home)
+    })
+
+    # The sidebar's incident picker also rings that incident on the zones map.
+    shiny::observe({
+      shiny::req(zone_map_ready(), input$incident)
+      highlight_incident(leaflet::leafletProxy("zone_map"), data$incidents[data$incidents$incident %in% input$incident, ])
     })
 
     # keep the picker in step with the filtered list, and let a marker click choose

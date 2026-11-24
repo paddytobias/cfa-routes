@@ -40,11 +40,18 @@ base_map <- function(stations) {
 zone_colours <- c("First" = "#0072B2", "Second" = "#E69F00", "Third" = "#009E73",
                   "Fourth or later" = "#D9D9D9", "No data" = "#FFFFFF")
 
-# The turnout area (from read_turnout_area()) is outlined in its own pane above the zone tiles,
-# so the tiles never cover it.
-zone_map <- function(stations, home = "Chewton", turnout_area = NULL) {
+incident_label <- function(i) {
+  sprintf("<b>%s</b><br>%s<br>Paged: %s", format(i$event_time, "%a %d %b %H:%M"),
+          htmltools::htmlEscape(i$incident_address), htmltools::htmlEscape(i$paged))
+}
+
+# Panes stack in z-index order: the zone squares sit below the station and incident markers
+# (the default overlay pane, 400), and the turnout area outline (from read_turnout_area()) sits
+# above them, so neither the squares nor the outline hide anything. The incident points, from
+# db_read_incidents(), are a toggle in the layers control and are shown to begin with.
+zone_map <- function(stations, home = "Chewton", turnout_area = NULL, incidents = NULL) {
   shown <- names(zone_colours) != "No data"
-  map <- station_map(stations)
+  map <- station_map(stations) |> leaflet::addMapPane("zone_tiles", zIndex = 380)
   if (!is.null(turnout_area)) {
     map <- map |>
       leaflet::addMapPane("turnout_area", zIndex = 450) |>
@@ -52,10 +59,30 @@ zone_map <- function(stations, home = "Chewton", turnout_area = NULL) {
                           weight = 3, opacity = 1, dashArray = "8 6",
                           options = leaflet::pathOptions(pane = "turnout_area", interactive = FALSE))
   }
+  incidents <- incidents[!is.na(incidents$lat) & !is.na(incidents$lng), ]
+  if (!is.null(incidents) && nrow(incidents) > 0) {
+    map <- map |>
+      leaflet::addCircleMarkers(data = incidents, lng = ~lng, lat = ~lat, radius = 5, weight = 1.5,
+                                color = "#FFFFFF", fillColor = "#000000", fillOpacity = 1,
+                                popup = incident_label(incidents), group = "Incidents") |>
+      leaflet::addLayersControl(overlayGroups = "Incidents", position = "topright",
+                                options = leaflet::layersControlOptions(collapsed = FALSE))
+  }
   map |>
     leaflet::addLegend("bottomright", colors = unname(zone_colours[shown]),
                        labels = sprintf("%s %s", home, tolower(names(zone_colours)[shown])),
                        title = "Arrives", opacity = 1)
+}
+
+# Ring the selected incident (one row of db_read_incidents(), or none to clear). It is a separate
+# group from the incident points, so the toggle in the layers control doesn't affect it, and it is
+# added after them, so it sits on top.
+highlight_incident <- function(map, incident) {
+  map <- leaflet::clearGroup(map, "selected_incident")
+  if (is.null(incident) || nrow(incident) == 0 || is.na(incident$lat[1]) || is.na(incident$lng[1])) return(map)
+  leaflet::addCircleMarkers(map, lng = incident$lng[1], lat = incident$lat[1], radius = 12, weight = 4,
+                            color = "#D4006A", fill = FALSE, opacity = 1, group = "selected_incident",
+                            popup = incident_label(incident[1, ]))
 }
 
 zone_popup <- function(z, home = "Chewton") {
@@ -75,7 +102,8 @@ add_zone_cells <- function(map, zones, bounds, outline_contested = TRUE, home = 
   outline <- outline_contested & d$contested
   leaflet::addRectangles(map, data = d, lng1 = ~lng1, lat1 = ~lat1, lng2 = ~lng2, lat2 = ~lat2,
                          group = "zones", fillColor = unname(zone_colours[as.character(d$zone)]), fillOpacity = 0.6,
-                         color = "#000000", weight = ifelse(outline, 2, 0), opacity = 1, popup = zone_popup(d, home))
+                         color = "#000000", weight = ifelse(outline, 2, 0), opacity = 1, popup = zone_popup(d, home),
+                         options = leaflet::pathOptions(pane = "zone_tiles"))
 }
 
 # Replace the incident markers (the map's zoom and the selected routes are untouched).

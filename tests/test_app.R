@@ -94,6 +94,39 @@ zm <- zone_map(data$stations, "Chewton", ta)
 methods <- vapply(zm$x$calls, `[[`, "", "method")
 stopifnot("addGeoJSON" %in% methods, which(methods == "addMapPane") < which(methods == "addGeoJSON"))
 stopifnot(!"addGeoJSON" %in% vapply(zone_map(data$stations)$x$calls, `[[`, "", "method"))
+# incident points: a toggle in the layers control, shown to begin with, built from escaped text
+inc <- data.frame(incident = c("a", "d", "n"), lat = c(-37.05, -37.06, NA), lng = c(144.25, 144.26, NA),
+                  event_time = as.POSIXct(c("2026-11-10 10:00:00", "2026-11-14 10:00:00", "2026-11-15 10:00:00"), tz = tzm),
+                  incident_address = c("1 A ST <b>X</b>", "2 B ST", "NO COORDS"), paged = c("Castlemaine", "Harcourt", "Taradale"))
+methods_of <- function(m) vapply(m$x$calls, `[[`, "", "method")
+zi <- zone_map(data$stations, "Chewton", ta, inc)
+calls <- zi$x$calls
+markers <- Filter(function(x) x$method == "addCircleMarkers", calls)[[2]]                  # the first set is the stations
+stopifnot(identical(markers$args[[5]], "Incidents"), length(markers$args[[1]]) == 2)       # the point without coordinates is dropped
+stopifnot(grepl("&lt;b&gt;X&lt;/b&gt;", markers$args[[9]][1], fixed = TRUE), !grepl("<b>X</b>", markers$args[[9]][1], fixed = TRUE))  # escaped
+ctl <- Filter(function(x) x$method == "addLayersControl", calls)
+stopifnot(length(ctl) == 1, identical(ctl[[1]]$args[[2]], "Incidents"))                    # the only overlay is the incident points
+panes <- Filter(function(x) x$method == "createMapPane", calls)
+stopifnot(identical(setNames(vapply(panes, function(x) x$args[[2]], 0), vapply(panes, function(x) x$args[[1]], "")),
+                    c(zone_tiles = 380, turnout_area = 450)))                              # tiles below markers (400), outline above
+stopifnot(!"addLayersControl" %in% methods_of(zone_map(data$stations, "Chewton", ta, inc[0, ])),
+          !"addLayersControl" %in% methods_of(zone_map(data$stations)))                    # no incidents: no toggle
+tiles <- add_zone_cells(leaflet::leaflet(), rank_cells(cell_time_matrix(cells), "Chewton"),
+                        cell_bounds(unique(cells[c("cell_id", "lat", "lng")]), 1), TRUE)
+stopifnot("zone_tiles" %in% unlist(tiles$x$calls[[2]]$args))                               # squares are drawn in the low pane
+# highlight: a ring on the selected incident, in its own group; cleared when there is none
+hl <- highlight_incident(leaflet::leaflet(), inc[1, ])
+stopifnot(identical(methods_of(hl), c("clearGroup", "addCircleMarkers")),
+          identical(hl$x$calls[[1]]$args[[1]], "selected_incident"), hl$x$calls[[2]]$args[[1]] == -37.05, hl$x$calls[[2]]$args[[2]] == 144.25)
+stopifnot(identical(methods_of(highlight_incident(leaflet::leaflet(), inc[0, ])), "clearGroup"),
+          identical(methods_of(highlight_incident(leaflet::leaflet(), NULL)), "clearGroup"),
+          identical(methods_of(highlight_incident(leaflet::leaflet(), inc[3, ])), "clearGroup"))   # no coordinates
+shiny::testServer(app_server(c(data, list(cell_times = cells, turnout_area = ta, incidents = transform(inc, incident = c("a", "d", "n"))))), {
+  do.call(session$setInputs, c(defaults, list(excluded = NULL, outline_contested = TRUE, incident = "a")))
+  session$setInputs(zone_map_bounds = list(north = -37, south = -37.2, east = 144.4, west = 144.1))
+  session$setInputs(incident = "d")                                                          # changing the pick re-rings without error
+  session$setInputs(incident = "n")                                                          # an incident without coordinates just clears
+})
 shiny::testServer(app_server(c(data, list(cell_times = cells, turnout_area = ta))), {
   do.call(session$setInputs, c(defaults, list(excluded = NULL, outline_contested = TRUE)))
   stopifnot(grepl("Dashed outline: CFA Chewton brigade primary turnout area", output$zone_note$html))

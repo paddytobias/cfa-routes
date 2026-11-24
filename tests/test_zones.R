@@ -94,3 +94,66 @@ stopifnot(nrow(saved) == 4, !any(saved$cell_id == stored[2]))                   
 stopifnot(nrow(db_missing_cell_pairs(con)) == 10)                                            # 14 - 6 fetched + 2 failed
 stopifnot(DBI::dbGetQuery(con, "SELECT COUNT(*) n FROM failures WHERE kind = 'cell_time'")$n == 2L)
 cat("zone tests passed\n")
+
+# ---- moving a station clears what was measured from the old position
+con <- db_connect(":memory:")
+st <- data.frame(station = c("Chewton", "Harcourt"), code = NA_character_, address = c("a", "b"),
+                 lat = c(-37.08, -36.99), lng = c(144.26, 144.26))
+stopifnot(length(db_upsert_stations(con, st)) == 0)                                          # first load clears nothing
+db_add_cells(con, g[1:2, ])
+db_save_cell_times(con, data.frame(cell_id = rep(g$cell_id[1:2], 2), station = rep(c("Chewton", "Harcourt"), each = 2),
+                                   duration_s = 60, distance_m = 1000, error = NA_character_))
+DBI::dbExecute(con, "INSERT INTO incidents (event, time, lat, lng) VALUES ('E1', 1, -37, 144)")
+DBI::dbExecute(con, "INSERT INTO routes (event, station, fetched_at) VALUES ('E1', 'Chewton', 1), ('E1', 'Harcourt', 1)")
+db_note_failures(con, "cell_time", c(pair_key(g$cell_id[1], "Chewton"), pair_key(g$cell_id[1], "Harcourt")))
+db_note_failures(con, "route", c("E1|Chewton", "E1|Harcourt"))
+count <- function(tbl) DBI::dbGetQuery(con, sprintf("SELECT COUNT(*) n FROM %s", tbl))$n
+
+stopifnot(length(db_upsert_stations(con, st)) == 0, count("cell_times") == 4, count("routes") == 2)   # unchanged: nothing cleared
+moved <- st; moved$lat[1] <- -37.081
+stopifnot(identical(db_upsert_stations(con, moved), "Chewton"))                              # Chewton moved
+stopifnot(count("cell_times") == 2, count("routes") == 1, count("failures") == 2,            # only Harcourt's results and failures remain
+          all(db_read_cell_times(con)$station == "Harcourt"), DBI::dbGetQuery(con, "SELECT station FROM routes")$station == "Harcourt")
+stopifnot(!any(grepl("Chewton", DBI::dbGetQuery(con, "SELECT key FROM failures")$key)))
+stopifnot(length(db_upsert_stations(con, moved)) == 0)                                       # re-running with the same position is a no-op
+
+blank <- moved; blank$lat <- blank$lng <- NA_real_                                           # CSV without coordinates keeps the stored ones
+stopifnot(length(db_upsert_stations(con, blank)) == 0, db_read_stations(con)$lat[1] == -37.081)
+changed_address <- blank; changed_address$address[2] <- "elsewhere"                          # new address drops coordinates: stale too
+stopifnot(identical(db_upsert_stations(con, changed_address), "Harcourt"), count("cell_times") == 0, is.na(db_read_stations(con)$lat[2]))
+stopifnot(length(db_upsert_stations(con, changed_address)) == 0)                             # still unplaced: nothing further to clear
+cat("station move tests passed\n")
+
+# ---- refresh_stations(): clear and refetch only the named stations
+con <- db_connect(":memory:")
+db_upsert_stations(con, data.frame(station = c("Chewton", "Harcourt"), code = c("CCHEW", "CHARC"), address = c("a", "b"),
+                                   lat = c(-37.08, -36.99), lng = c(144.26, 144.26)))
+invisible(db_add_incidents(con, data.frame(event = "E1", time = as.POSIXct("2026-11-14 20:18:53", tz = "Australia/Melbourne"),
+  primary_brigade = "CMAI", response_code = "STRUC1", location_text = "JOB", map_ref = "x", turnout = "CCHEW CHARC", address_guess = "X ST")))
+db_set_coords(con, "incidents", "event", data.frame(event = "E1", lat = -37.05, lng = 144.2))
+db_add_cells(con, g[1:3, ])
+route_resp <- list(routes = list(list(distanceMeters = 6000, duration = "600s", staticDuration = "540s",
+  polyline = list(encodedPolyline = googlePolylines::encode(data.frame(lat = c(0, 0), lon = c(0, 0.05)))),
+  travelAdvisory = list(speedReadingIntervals = list()))))
+asked <- list(routes = 0, matrix_origins = character())
+counting <- list(
+  routes = function(body) { asked$routes <<- asked$routes + 1; route_resp },
+  matrix = function(body) {
+    asked$matrix_origins <<- c(asked$matrix_origins, body$origins[[1]]$waypoint$location$latLng$latitude)
+    lapply(seq_along(body$destinations) - 1L, function(i) list(destinationIndex = i, duration = "300s", distanceMeters = 2500L,
+                                                               condition = "ROUTE_EXISTS", status = list()))
+  })
+invisible(route_pending(con, counting, with_elevation = FALSE)); fetch_cell_times(con, counting, sleep = nosleep)
+stopifnot(asked$routes == 2, count("cell_times") == 6)
+Sys.sleep(1.1)                                                                               # fetched_at has one-second resolution
+harcourt_before <- DBI::dbGetQuery(con, "SELECT fetched_at FROM routes WHERE station = 'Harcourt'")$fetched_at
+asked <- list(routes = 0, matrix_origins = character())
+done <- refresh_stations(con, counting, "Chewton")
+stopifnot(identical(done, c(incidents = 1L, grid_pairs = 3L)), asked$routes == 1, identical(asked$matrix_origins, "-37.08"))   # Chewton only
+stopifnot(count("cell_times") == 6, count("routes") == 2,
+          identical(DBI::dbGetQuery(con, "SELECT fetched_at FROM routes WHERE station = 'Harcourt'")$fetched_at, harcourt_before))
+stopifnot(inherits(tryCatch(refresh_stations(con, counting, c("Chewton", "Nowhere")), error = identity), "error"), count("routes") == 2)  # nothing cleared on a typo
+asked <- list(routes = 0, matrix_origins = character())
+done <- refresh_stations(con, NULL, c("Chewton", "Harcourt"), fetch = FALSE)                  # clear only: no client needed
+stopifnot(identical(done, c(incidents = 0L, grid_pairs = 0L)), count("routes") == 0, count("cell_times") == 0, asked$routes == 0)
+cat("refresh tests passed\n")

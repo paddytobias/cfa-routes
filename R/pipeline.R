@@ -88,3 +88,20 @@ fetch_cell_times <- function(con, client, max_elements = 600L, chunk = 200L, max
   }
   fetched
 }
+
+# Forget what was measured from `stations` and fetch it again: their routes to every stored
+# incident and their travel times to every grid cell. Use after changing a station's
+# coordinates in the database directly (changes made through config/stations.csv are
+# handled automatically). With `fetch = FALSE` it only clears, and the next run of
+# run.R / fetch_grid.R fetches. Any other route or grid pair still missing is fetched too.
+# Returns the number of incidents routed and grid pairs fetched.
+refresh_stations <- function(con, client, stations, fetch = TRUE, max_elements = 1000000L) {
+  unknown <- setdiff(stations, db_read_stations(con)$station)
+  if (length(unknown) > 0) {
+    stop("Not in the stations table: ", paste(unknown, collapse = ", "), call. = FALSE)
+  }
+  db_clear_station_results(con, stations)
+  if (!fetch) return(c(incidents = 0L, grid_pairs = 0L))
+  routed <- route_pending(con, client, max_incidents = 1000000L, with_elevation = FALSE)
+  c(incidents = length(routed), grid_pairs = fetch_cell_times(con, client, max_elements))
+}

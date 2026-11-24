@@ -50,7 +50,14 @@ Rscript fetch_grid.R         # pilot: 600 station/cell pairs, nearest Chewton fi
 Rscript fetch_grid.R 20000   # the rest (about 12,000 pairs in all); re-running resumes
 ```
 
-Google bills per station/cell pair, so check the charge after the pilot. To add a brigade, add it to `config/stations.csv` and re-run: only its column is fetched. The map outlines Chewton's primary turnout area from `data/turnout_area.geojson`, loaded at startup; replace that file to change it.
+Google bills per station/cell pair, so check the charge after the pilot. To add a brigade, add it to `config/stations.csv` and re-run: only its column is fetched. The map outlines Chewton's primary turnout area from `data/turnout_area.geojson`, loaded at startup; replace that file to change it. Past incidents are shown as black points that can be switched on and off from the layers control on the map. The sidebar's incident picker rings the chosen incident.
+
+If you move a station, routes and grid times measured from its old position are stale. Changing its `lat`/`lng` in `config/stations.csv` is picked up automatically. If you edit the `stations` table in the database directly, name the station so its results are cleared and fetched again (this bills Google for about 2,000 grid cells per station plus one route per incident):
+
+```sh
+Rscript refresh_stations.R Maldon "Sutton Grange"
+Rscript refresh_stations.R --no-fetch Maldon   # only clear; fetch later
+```
 
 Optionally set `CARTO_BASEMAP_URL` for keyed Carto map tiles; the app falls back to the free tiles without it.
 
@@ -78,6 +85,7 @@ The workflow needs these repository secrets: `GOOGLE_MAPS_API_KEY`, `CARTO_BASEM
 | --- | --- |
 | `app.R` | Shiny entry point |
 | `R/` | App UI and server, database, Google and PagerMon clients, analysis |
+| `refresh_stations.R` | Clear and refetch the results of stations whose coordinates changed |
 | `fetch_grid.R` | Fetch station-to-grid travel times for the turnout zones map |
 | `config/stations.csv` | Stations and their pager codes |
 | `data/cfa_routes.sqlite` | Stored incidents, routes and geometry |

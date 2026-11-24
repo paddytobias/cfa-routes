@@ -84,12 +84,34 @@ db_exhausted <- function(con, kind, max_attempts) {
 
 # ---- stations ---------------------------------------------------------------
 
+# Times and routes are measured from a station's coordinates, so they are stale once
+# those change. This forgets a station's stored routes, grid times and failed attempts,
+# and the next run fetches them again.
+db_clear_station_results <- function(con, stations) {
+  if (length(stations) == 0) return(invisible(0L))
+  one <- function(sql, ...) DBI::dbExecute(con, sql, params = list(...))
+  n <- 0L
+  for (st in stations) {
+    n <- n + one("DELETE FROM routes WHERE station = ?", st) + one("DELETE FROM cell_times WHERE station = ?", st)
+  }
+  failed <- DBI::dbGetQuery(con, "SELECT kind, key FROM failures WHERE kind IN ('route', 'polyline', 'cell_time')")
+  stale <- failed[sub("^.*\\|", "", failed$key) %in% stations, ]    # keys are "event|station" or "cell|station"
+  if (nrow(stale) > 0) {
+    DBI::dbExecute(con, "DELETE FROM failures WHERE kind = ? AND key = ?", params = unname(as.list(stale[c("kind", "key")])))
+  }
+  invisible(n)
+}
+
 # CSV wins for address/code. Coordinates given in the CSV win; otherwise
-# existing ones are kept only while the address is unchanged.
+# existing ones are kept only while the address is unchanged. A station whose
+# coordinates end up different (moved, or dropped because its address changed) has
+# its routes and grid times cleared, since they were measured from the old position.
+# Returns the stations cleared.
 db_upsert_stations <- function(con, stations) {
   for (col in c("code")) if (!col %in% names(stations)) stations[[col]] <- NA_character_
   for (col in c("lat", "lng")) if (!col %in% names(stations)) stations[[col]] <- NA_real_
-  invisible(DBI::dbExecute(con, "
+  before <- db_read_stations(con)
+  DBI::dbExecute(con, "
     INSERT INTO stations (station, code, address, lat, lng) VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(station) DO UPDATE SET
       code = excluded.code,
@@ -98,7 +120,13 @@ db_upsert_stations <- function(con, stations) {
       lng = CASE WHEN excluded.lng IS NOT NULL THEN excluded.lng
                  WHEN stations.address = excluded.address THEN stations.lng END,
       address = excluded.address",
-    params = unname(as.list(stations[c("station", "code", "address", "lat", "lng")]))))
+    params = unname(as.list(stations[c("station", "code", "address", "lat", "lng")])))
+  after <- db_read_stations(con)
+  old <- before[match(after$station, before$station), ]
+  differs <- function(a, b) xor(is.na(a), is.na(b)) | (!is.na(a) & !is.na(b) & abs(a - b) > 1e-6)
+  moved <- after$station[!is.na(old$station) & (differs(old$lat, after$lat) | differs(old$lng, after$lng))]
+  db_clear_station_results(con, moved)
+  invisible(moved)
 }
 
 db_read_stations <- function(con) {

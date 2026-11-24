@@ -1,14 +1,14 @@
 station,code,address,lat,lng
 Chewton,CCHEW,"Chewton Fire Station, Chewton VIC 3451",,
-Castlemaine,CCMAI,"Castlemaine Fire Station, Castlemaine VIC 3450",,
+Castlemaine,CCMAI,"Castlemaine Fire Station, Castlemaine VIC 3450",-37.0510439,144.2190106
 Harcourt,CHARC,"Harcourt CFA, Harcourt VIC 3453",,
-Campbells Creek,CCAMP,"Campbells Creek CFA, Campbells Creek VIC 3451",,
+Campbells Creek,CCAMP,"Campbells Creek CFA, Campbells Creek VIC 3451",-37.0913316,144.2033714
 Elphinstone,CELPH,"Elphinstone CFA, Elphinstone VIC 3448",,
 Taradale,CTARA,"Taradale CFA, Taradale VIC 3447",,
 Fryerstown,CFRYE,"Fryerstown Fire Station, Fryerstown VIC 3451",,
 Guildford,CGUIL,"Guildford Fire Station, Guildford VIC 3451",,
-Metcalfe,,"Metcalfe CFA Fire Station VIC",,
-Sutton Grange,,"Sutton Grange CFA Fire Station VIC",,
-Malmsbury,CMALM,"Malmsbury CFA Fire Station VIC",,
-Newstead,,"Newstead CFA Fire Station VIC",,
-Maldon,CMALD,"Maldon CFA Fire Station VIC",,
+Metcalfe,,"Metcalfe CFA Fire Station VIC",-37.0960754,144.2583735
+Sutton Grange,,"Sutton Grange CFA Fire Station VIC",-36.9900593,144.3531351
+Malmsbury,CMALM,"Malmsbury CFA Fire Station VIC",-37.1881938,144.3816847
+Newstead,,"Newstead CFA Fire Station VIC",-37.1074139,144.0602649
+Maldon,CMALD,"Maldon CFA Fire Station VIC",-36.9974385,144.0674588
