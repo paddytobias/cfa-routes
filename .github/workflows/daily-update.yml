@@ -37,6 +37,10 @@ jobs:
         with:
           use-public-rspm: true
 
+      # System libraries that sf and terra (pinned in renv.lock) need to load.
+      - name: Install system libraries
+        run: sudo apt-get update && sudo apt-get install -y libgdal-dev libgeos-dev libproj-dev libudunits2-dev gdal-bin
+
       # Restore the exact package versions pinned in renv.lock (cached between runs).
       - uses: r-lib/actions/setup-renv@v2
 
